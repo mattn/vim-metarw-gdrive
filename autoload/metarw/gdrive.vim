@@ -74,7 +74,7 @@ function! s:read_content(_, ...)
     return ['error', 'This file seems impossible to edit in vim!']
   endif
   let resp = webapi#http#get(res.downloadUrl, '', {'Authorization': 'Bearer ' . s:settings['access_token']})
-  if resp.header[0] !~ '200'
+  if resp.status !~ '^2'
     return ['error', resp.header[0]]
   endif
   let content = resp.content
