@@ -96,7 +96,7 @@ function! s:write_content(_, content, ...)
   if !has_key(b:, 'metarw_gdrive_id')
     let title = id
     let path = split(a:_.path, '[\/]')[0]
-    let res = webapi#json#decode(webapi#http#post('https://www.googleapis.com/drive/v2/files', webapi#json#encode({"title": title, "mimeType": "application/octet-stream", "description": "", "parents": [{"id": path}]}), {'Authorization': 'Bearer ' . s:settings['access_token'], 'Content-Type': 'application/json'}, 'POST').content)
+    let res = webapi#json#decode(webapi#http#post('https://www.googleapis.com/upload/drive/v2/files?uploadType=media', webapi#json#encode({"title": title, "mimeType": "application/octet-stream", "description": "", "parents": [{"id": path}]}), {'Authorization': 'Bearer ' . s:settings['access_token'], 'Content-Type': 'application/json'}, 'POST').content)
     if has_key(res, 'error')
       return ['error', res.error.message]
     endif
