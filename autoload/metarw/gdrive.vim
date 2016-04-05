@@ -70,17 +70,32 @@ function! s:read_content(_, ...)
     endif
     return s:read_content(a:_, 1)
   endif
-  if !has_key(res, 'downloadUrl')
-    return ['error', 'This file seems impossible to edit in vim!']
+
+  let b:pandoc_converted = 0
+
+  if has_key(res, 'downloadUrl')
+    let downloadUrl = res.downloadUrl
+    let fileExt = res.fileExtension
+  else
+    let downloadUrl = res.exportLinks["text/html"]
+    let b:pandoc_converted = 1
+    let fileExt = "md"
+    " return ['error', 'This file seems impossible to edit in vim! ' . jsonString ]
   endif
-  let resp = webapi#http#get(res.downloadUrl, '', {'Authorization': 'Bearer ' . s:settings['access_token']})
+
+  let resp = webapi#http#get(downloadUrl, '', {'Authorization': 'Bearer ' . s:settings['access_token']})
   if resp.status !~ '^2'
     return ['error', resp.header[0]]
   endif
   let content = resp.content
+
+  if b:pandoc_converted
+    let content =  system("pandoc -s -f html -t markdown", content)
+  endif
+
   call setline(2, split(iconv(content, 'utf-8', &encoding), "\n"))
 
-  let ext = '.' . res.fileExtension
+  let ext = '.' . fileExt
   if has_key(s:extmap, ext)
     let &filetype = s:extmap[ext]
   endif
@@ -92,6 +107,15 @@ function! s:write_content(_, content, ...)
   if !s:load_settings()
     return ['error', v:errmsg]
   endif
+
+  if exists('b:pandoc_converted') && b:pandoc_converted
+    let content = system("pandoc -f markdown -t html", a:content)
+    let contenttype = 'text/html'
+  else
+    let content = a:content
+    let contenttype = 'application/octet-stream'
+  endif
+
   let id = a:_.id
   if !has_key(b:, 'metarw_gdrive_id')
     let title = id
@@ -102,7 +126,7 @@ function! s:write_content(_, content, ...)
     endif
     let id = res['id']
   endif
-  let res = webapi#json#decode(webapi#http#post('https://www.googleapis.com/upload/drive/v2/files/' . webapi#http#encodeURI(id), a:content, {'Authorization': 'Bearer ' . s:settings['access_token'], 'Content-Type': 'application/octet-stream'}, 'PUT').content)
+  let res = webapi#json#decode(webapi#http#post('https://www.googleapis.com/upload/drive/v2/files/' . webapi#http#encodeURI(id), content, {'Authorization': 'Bearer ' . s:settings['access_token'], 'Content-Type': contenttype}, 'PUT').content)
   if has_key(res, 'error')
     if res.error.code != 401 || a:0 != 0
       return ['error', res.error.message]
@@ -110,7 +134,7 @@ function! s:write_content(_, content, ...)
     if !s:refresh_token()
       return ['error', v:errmsg]
     endif
-    return s:write_content(a:_, a:content, 1)
+    return s:write_content(a:_, content, 1)
   endif
   return ['done', '']
 endfunction
